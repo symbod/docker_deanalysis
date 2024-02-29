@@ -7,7 +7,7 @@
 ## Author: Klaudia Adamowicz
 ## Email: klaudia.adamowicz@uni-hamburg.de
 ##
-## Date Created: 2023-12-13
+## Date Created: 2024-02-29
 ##
 ## Copyright (c) Dr. Tanja Laske, 2023
 
@@ -56,8 +56,8 @@ perform_de <- function(set_condition, set_counts, set_comparisons){
 # ----- strict: TRUE if < and >, FALLSE if <= and >=
 # ----- padj: TRUE if alpha should be applied to padj, FALSE if alpha applied to p-value
 # ----- logFC_thr: TRUE if threshold for logFC should be set, FALSE if not
-compare_de_expr <- function(set_fit, set_comparisons, out_dir, lfc_up = 1, lfc_down = -1, alpha = 0.05, 
-                            strict = FALSE, padj = TRUE, logFC_thr=TRUE, write_output = TRUE){
+compare_de_expr <- function(set_fit, set_comparisons, out_dir, lfc_up = args$logFC_up, lfc_down = args$logFC_down, alpha = args$alpha, 
+                            strict = FALSE, padj = args$p_adj, logFC_thr=args$logFC, write_output = TRUE){
   de_results <- list()
   for (i in 1:length(set_comparisons)){
     # get results for each comparison
@@ -96,7 +96,7 @@ compare_de_expr <- function(set_fit, set_comparisons, out_dir, lfc_up = 1, lfc_d
     }
     gene_reg$Change <- as.factor(gene_reg$Change)
     if (write_output){
-      write.table(gene_reg, file = paste0(out_dir,"de_data/","DEdata.", set_comparisons[[i]],".txt"),sep=" ",row.names = FALSE) 
+      write.table(gene_reg, file = file.path(out_dir,"de_data",paste0("DEdata.", set_comparisons[[i]],".txt")),sep=" ",row.names = FALSE) 
     }
     de_results[[set_comparisons[[i]]]] <- gene_reg
   }
@@ -119,14 +119,12 @@ compare_de_expr <- function(set_fit, set_comparisons, out_dir, lfc_up = 1, lfc_d
 # ----- logFC_thr: TRUE if threshold for logFC should be set, FALSE if not
 # ----- plot: TRUE if plots should be rendered, FALSE if not
 # ----- write_output: TRUE if files with results should be written, else FALSE
-run_DE <- function(counts, md, condition_name, comparisons, out_dir, lfc_up = 1, lfc_down = -1, alpha = 0.05, 
-                   strict = FALSE, padj = TRUE, logFC_thr=TRUE, plot = TRUE, write_output = TRUE){
-  
-  
+run_DE <- function(counts, md, condition_name, comparisons, out_dir, lfc_up = args$logFC_up, lfc_down = args$logFC_down, alpha = args$alpha, 
+                   strict = FALSE, padj = args$p_adj, logFC_thr=args$logFC, plot = TRUE, write_output = TRUE){
   if (write_output){
     # create output directories
     dir.create(out_dir, showWarnings = FALSE) #stops warnings if folder already exists
-    dir.create(paste0(out_dir,"de_data/"), showWarnings = FALSE) #stops warnings if folder already exists
+    dir.create(file.path(out_dir,"de_data"), showWarnings = FALSE) #stops warnings if folder already exists
     
   }
   
@@ -168,9 +166,9 @@ save_de_results <- function(de_results, out_dir, cond, write_output = TRUE){
       group_A = str_split(sample_one,"_")[[1]],
       group_B = str_split(sample_two,"_")[[1]],
       sample_group = sample_group
-    ), DE_file = paste0(out_dir,"de_data/","DEdata.",sample_one,'-',sample_two,".txt")
+    ), DE_file = file.path(out_dir,"de_data",paste0("DEdata.",sample_one,'-',sample_two,".txt"))
     )
-    write(toJSON(meta), paste0(out_dir,"de_data/","DEdata.",sample_one,'-',sample_two,".txt.json")) 
+    write(toJSON(meta), file.path(out_dir,"de_data",paste0("DEdata.",sample_one,'-',sample_two,".txt.json")))
     
     # save number of DEs
     sum[sample_one, sample_two] = nrow(de_result[de_result$Change != "No change"])
@@ -179,8 +177,8 @@ save_de_results <- function(de_results, out_dir, cond, write_output = TRUE){
   }
   
   if (write_output){
-    write.csv(sum, file = paste0(out_dir, "DE_overview_", cond, "-sum.csv"),row.names = TRUE) 
-    write.csv(updown, file = paste0(out_dir, "DE_overview_", cond, "-updown.csv"),row.names = TRUE)
+    write.csv(sum, file = file.path(out_dir, paste0("DE_overview_", cond, "-sum.csv")),row.names = TRUE) 
+    write.csv(updown, file = file.path(out_dir, paste0("DE_overview_", cond, "-updown.csv")),row.names = TRUE)
   }
   return(list(sum=sum, updown=updown))
 }
@@ -205,7 +203,7 @@ clustering_plot <- function(conditions, data, filename, set_type, out_dir){
   #cond <- factor(plyr::mapvalues(names(data), from = meta_data$Sample_name, to = meta_data[[by]], warn_missing=FALSE))
   coord <- plotMDS(data, pch=19, gene.selection=set_type)
   dev.off()
-  write.table(data.frame(meta_data$Column_name, coord$x, coord$y), file = paste0(out_dir, name_list[[set_type]],".csv"), sep=",", col.names=TRUE, row.names = FALSE)
+  write.table(data.frame(meta_data$Column_name, coord$x, coord$y), file = file.path(out_dir, paste0(name_list[[set_type]],".csv")), sep=",", col.names=TRUE, row.names = FALSE)
 }
 
 
@@ -217,7 +215,14 @@ clustering_plot <- function(conditions, data, filename, set_type, out_dir){
 parser <- OptionParser()
 parser <- add_option(parser, c("-m","--meta_file"), help="Meta data description file")
 parser <- add_option(parser, c("-c","--count_file"), help="Preprocessed count file")
-parser <- add_option(parser, c("-o","--out_dir"), help="Directory for output files")
+parser <- add_option(parser, c("-o","--out_dir"), help="Directory for output files", default="")
+
+# Adding new options for thresholds with defaults
+parser <- add_option(parser, c("--logFC"), help = "Boolean specifying whether to apply a logFC threshold (TRUE) or not (FALSE)", type = "logical", default = TRUE)
+parser <- add_option(parser, c("--logFC_up"), help = "Upper log2 fold change threshold (dividing into upregulated)", type = "numeric", default = 1)
+parser <- add_option(parser, c("--logFC_down"), help = "Lower log2 fold change threshold (dividing into downregulated)", type = "numeric", default = -1)
+parser <- add_option(parser, c("--p_adj"), help = "Boolean specifying whether to apply a threshold on adjusted p-values (TRUE) or on raw p-values (FALSE)", type = "logical", default = TRUE)
+parser <- add_option(parser, c("--alpha"), help = "Threshold for adjusted p-values or p-values", type = "numeric", default = 0.05)
 
 
 # get command line options, if help option encountered print help and exit
@@ -234,12 +239,12 @@ check_options <- function(tags){
 check_options(c('meta_file','count_file'))
 
 # save arguments
-meta_file_path <- args$meta_file #"example_data/plasma/symbod_plasma_metadata_old.csv" #args$meta_file
-count_file_path <- args$count_file #"example_data/plasma/filtered_median_on_irs_symbod_plasma.csv"#args$count_file
-out_dir <- args$out_dir #"example_data/test/"#args$out_dir
+meta_file_path <- args$meta_file 
+count_file_path <- args$count_file 
+out_dir <- args$out_dir
 
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE) #stops warnings if folder already exists
-dir.create(paste0(out_dir,"de_data"), showWarnings = FALSE, recursive = TRUE) # for de data
+dir.create(file.path(out_dir,"de_data"), showWarnings = FALSE, recursive = TRUE) # for de data
 
 ## Load data ----
 meta_data <- fread(meta_file_path)
@@ -274,7 +279,7 @@ mappings <- list(
   Timepoint = list(setNames(paste0("T", seq_along(sort(unique(meta_data$Timepoint)))), sort(unique(meta_data$Timepoint))))
 )
 
-write(toJSON(mappings), paste0(out_dir, "Metadata_encoding.txt.json")) 
+write(toJSON(mappings), file.path(out_dir, "Metadata_encoding.txt.json")) 
 
 reverse_mappings <- list(
   Condition = if (!is.null(mappings$Condition)) setNames(names(mappings$Condition[[1]]), unlist(mappings$Condition[[1]])) else NULL,
@@ -282,9 +287,9 @@ reverse_mappings <- list(
   Timepoint = if (!is.null(mappings$Timepoint)) setNames(names(mappings$Timepoint[[1]]), unlist(mappings$Timepoint[[1]])) else NULL
 )
 
-write(toJSON(reverse_mappings), paste0(out_dir, "Metadata_reverse_encoding.txt.json")) 
+write(toJSON(reverse_mappings), file.path(out_dir, "Metadata_reverse_encoding.txt.json")) 
 
-  # rename condition
+# rename condition
 meta_data[, Condition := mappings$Condition[[1]][Condition]]
 # rename timepoint
 meta_data[, Timepoint := as.character(Timepoint)]

@@ -4,6 +4,9 @@
 ## Overview
 This repository contains a Nextflow pipeline for performing differential expression (DE) analysis. It's designed to compare various conditions and timepoints in proteomics data, identifying differentially expressed elements between these groups.
 
+## Container
+The corresponding docker container, which is called in the Nextflow file, can be found here: https://hub.docker.com/repository/docker/kadam0/deanalysis/general
+
 ## Usage
 To run the pipeline, you need to specify three flags:
 

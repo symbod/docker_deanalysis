@@ -9,17 +9,18 @@
 ##
 ## Date Created: 2024-02-29
 ##
-## Copyright (c) Dr. Tanja Laske, 2023
+## Copyright (c) Dr. Tanja Laske, 2024
 
 
 # Load required libraries -----
 suppressPackageStartupMessages({
   required_packages <- c("optparse","data.table","dplyr","stringr","ggrepel", "rjson")
   for(package in required_packages){
-    if(!require(package,character.only = TRUE, quietly = TRUE)) install.packages(package, dependencies = TRUE, quietly = TRUE)
+    #if(!require(package,character.only = TRUE, quietly = TRUE)) install.packages(package, dependencies = TRUE, quietly = TRUE)
     library(package, character.only = TRUE, quietly = TRUE)
   }
-  if(!require("limma",character.only = TRUE, quietly = TRUE)) BiocManager::install("limma")
+  #if(!require("limma",character.only = TRUE, quietly = TRUE)) BiocManager::install("limma")
+  library("limma")
 })
 
 # Methods --------------------------
@@ -253,11 +254,15 @@ count_data <- fread(count_file_path)
 ## Prepare data ----
 
 ### Correct data ----
+ID_column <- "Animal"
+
 # remove ref
-meta_data <- meta_data[meta_data$ID != "ref",]
+meta_data <- meta_data[meta_data[[ID_column]] != "ref",]
 
 # convert timepoint column
-meta_data[, Timepoint := as.numeric(Timepoint)]
+meta_data[, Timepoint := sapply(Timepoint, function(tp) ifelse(grepl("pre", tp), -as.numeric(gsub("pre", "", tp)), ifelse(grepl("post", tp), as.numeric(gsub("post", "", tp)), as.numeric(tp))))]
+meta_data[, Sample_name := if ("Sample_name" %in% names(meta_data)) Sample_name else if ("Label" %in% names(meta_data)) Label else NULL]
+meta_data[, Column_name := if ("Column_name" %in% names(meta_data)) Column_name else if ("Column" %in% names(meta_data)) Column else NULL]
 
 ### Rename Columns ---
 

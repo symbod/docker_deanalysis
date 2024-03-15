@@ -11,11 +11,21 @@
 ##
 ## Copyright (c) Dr. Tanja Laske, 2023
 
+# Load required libraries -----
+suppressPackageStartupMessages({
+  required_packages <- c("optparse","data.table","dplyr","stringr","ggrepel", "rjson", "tidyr")
+  for(package in required_packages){
+    #if(!require(package,character.only = TRUE, quietly = TRUE)) install.packages(package, dependencies = TRUE, quietly = TRUE)
+    library(package, character.only = TRUE, quietly = TRUE)
+  }
+})
+
 ## Parse arguments -----
 
 # set up arguments
 parser <- OptionParser()
-parser <- add_option(parser, c("-o","--out_dir"), help="Directory for output files from DE analysis", default="")
+parser <- add_option(parser, c("-i","--in_dir"), help="Directory with files from DE analysis", default="")
+parser <- add_option(parser, c("-o","--out_dir"), help="Directory for output files from Summarizer", default="")
 
 # Adding new options for thresholds with defaults
 parser <- add_option(parser, c("--logFC"), help = "Boolean specifying whether to apply a logFC threshold (TRUE) or not (FALSE)", type = "logical", default = TRUE)
@@ -27,10 +37,15 @@ parser <- add_option(parser, c("--alpha"), help = "Threshold for adjusted p-valu
 # get command line options, if help option encountered print help and exit
 args <- parse_args(parser)
 
+in_dir <- args$in_dir
+out_dir <- args$out_dir
+
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE) #stops warnings if folder already exists
+
 ## Read all DE files ----
 
 #out_dir <- args$out_dir
-de_data_dir <- file.path(out_dir, "de_data")
+de_data_dir <- file.path(in_dir, "de_data")
 
 # Get the list of .txt files in the directory
 file_list <- list.files(de_data_dir, pattern = "\\.txt$", full.names = TRUE)
@@ -111,8 +126,8 @@ for (comparison in names(de_list)) {
 top_comparisons <- do.call(rbind, comparison_counts)
 top_comparisons <- data.frame(comparison = rownames(top_comparisons), top_comparisons, row.names = NULL)
 
-# Sort the dataframe by the 'sum' column
-top_comparisons <- top_comparisons[order(-top_comparisons$sum), ]
+# Sort the dataframe by the 'total' column
+top_comparisons <- top_comparisons[order(-top_comparisons$total), ]
 
 write.table(top_comparisons, file.path(out_dir,"top-comparisons.tsv"), sep="\t", row.names=FALSE)
 

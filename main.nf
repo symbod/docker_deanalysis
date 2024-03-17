@@ -10,53 +10,50 @@ params.logFC_down = -1
 params.p_adj = true
 params.alpha = 0.05
 
-// scripts
-deanalysis_script = Channel.fromPath("${projectDir}/DEAnalysis.R")
-summarizer_script = Channel.fromPath("${projectDir}/Summarizer.R")
+// data
+meta_file = file(params.meta_file)
+count_file = file(params.count_file)
 
+// scripts
+deanalysis_script = file("${projectDir}/DEAnalysis.R")
+summarizer_script = file("${projectDir}/Summarizer.R")
 
 process deanalysis {
-    container 'kadam0/deanalysis:0.0.1'
+    container 'kadam0/deanalysis:0.0.2'
     publishDir params.output, mode: "copy"
 
     input:
-    path script_file from deanalysis_script
-    path meta_file from Channel.fromPath(params.meta_file)
-    path count_file from Channel.fromPath(params.count_file)
+    path script_file
+    path meta_file 
+    path count_file 
 
     output:                                
-    path "*"
+    path("de_out", type:"dir")
 
     script:
     """
-    Rscript $script_file --meta_file ${meta_file} --count_file ${count_file} --out_dir ${params.output} --logFC ${params.logFC} --logFC_up ${params.logFC_up} --logFC_down ${params.logFC_down} --p_adj ${params.p_adj} --alpha ${params.alpha}
+    Rscript $script_file --meta_file $meta_file --count_file $count_file --out_dir ./de_out --logFC $params.logFC --logFC_up $params.logFC_up --logFC_down $params.logFC_down --p_adj $params.p_adj --alpha $params.alpha
     """
 }
 
 process summarize {
-    container 'kadam0/deanalysis:0.0.1'
+    container 'kadam0/deanalysis:0.0.2'
     publishDir params.output, mode: "copy"
 
     input:
-    path script_file from summarize_script
-    val input_dir from params.output
-    val logFC from params.logFC
-    val logFC_up from params.logFC_up
-    val logFC_down from params.logFC_down
-    val p_adj from params.p_adj
-    val alpha from params.alpha
+    path script_file
+    path de_output
 
     output:                                
-    path "*"
+    path "summary"
 
     script:
     """
-    Rscript $script_file --out_dir ${input_dir} --logFC ${logFC} --logFC_up ${logFC_up} --logFC_down ${logFC_down} --p_adj ${p_adj} --alpha ${alpha}    """
+    Rscript $script_file --in_dir $de_output --out_dir ./summary --logFC $params.logFC --logFC_up $params.logFC_up --logFC_down $params.logFC_down --p_adj $params.p_adj --alpha $params.alpha
+    """
 }
 
-
-
 workflow {
-  deanalysis()
-  summarize()
+  deanalysis(deanalysis_script, meta_file, count_file)
+  summarize(summarizer_script, deanalysis.out)
 }
